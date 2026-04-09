@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pigeon — AI Minecraft Companion</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Syne:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --gold: #FFD700;
+      --gold-dim: #b8860b;
+      --gold-dark: #7a5a00;
+      --bg: #0d0d0d;
+      --surface: rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.08);
+      --text: rgba(255,255,255,0.85);
+      --muted: rgba(255,255,255,0.4);
+      --faint: rgba(255,255,255,0.08);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    #bg-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      opacity: 0.15;
+      pointer-events: none;
+    }
+
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 32px;
+      background: rgba(13,13,13,0.75);
+      backdrop-filter: blur(14px);
+      border-bottom: 0.5px solid var(--border);
+    }
+
+    .nav-logo {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 13px;
+      color: var(--gold);
+      text-shadow: 2px 2px 0 var(--gold-dim), 4px 4px 0 var(--gold-dark);
+      letter-spacing: 1px;
+    }
+
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+
+    .nav-link {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-link:hover { color: var(--gold); }
+
+    .vote-btn {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px;
+      background: var(--gold);
+      color: #111;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 4px;
+      cursor: pointer;
+      box-shadow: 0 3px 0 var(--gold-dark);
+      transition: transform 0.1s, box-shadow 0.1s;
+      letter-spacing: 0.5px;
+    }
+    .vote-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 0 var(--gold-dark); }
+    .vote-btn:active { transform: translateY(2px); box-shadow: none; }
+
+    .hero {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: 140px 24px 60px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,215,0,0.1);
+      border: 0.5px solid rgba(255,215,0,0.25);
+      color: var(--gold);
+      border-radius: 99px;
+      font-size: 11px;
+      padding: 5px 14px;
+      margin-bottom: 28px;
+      letter-spacing: 0.5px;
+      font-weight: 500;
+    }
+    .hero-badge::before {
+      content: '';
+      width: 6px; height: 6px;
+      background: var(--gold);
+      border-radius: 50%;
+      animation: pulse-dot 2s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.7); }
+    }
+
+    .hero-title {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(32px, 7vw, 64px);
+      color: var(--gold);
+      text-shadow: 3px 3px 0 var(--gold-dim), 6px 6px 0 var(--gold-dark);
+      line-height: 1.5;
+      margin-bottom: 20px;
+      animation: floatY 4s ease-in-out infinite;
+    }
+
+    @keyframes floatY {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    .hero-sub {
+      font-size: 16px;
+      color: var(--muted);
+      max-width: 480px;
+      margin: 0 auto 44px;
+      line-height: 1.8;
+      font-weight: 400;
+    }
+
+    .setup-section {
+      position: relative;
+      z-index: 1;
+      max-width: 600px;
+      margin: 0 auto 32px;
+      padding: 0 16px;
+    }
+
+    .setup-group { margin-bottom: 16px; }
+
+    .setup-label {
+      text-align: center;
+      font-size: 10px;
+      color: rgba(255,255,255,0.25);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      font-weight: 500;
+    }
+
+    .chip-row {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      color: var(--muted);
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 7px 18px;
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+      font-family: 'Syne', sans-serif;
+    }
+    .chip:hover { border-color: rgba(255,215,0,0.35); color: var(--gold); }
+    .chip.active {
+      background: rgba(255,215,0,0.12);
+      border-color: rgba(255,215,0,0.5);
+      color: var(--gold);
+    }
+
+    .chat-section {
+      position: relative;
+      z-index: 1;
+      max-width: 660px;
+      margin: 0 auto;
+      padding: 0 16px 80px;
+    }
+
+    .chat-box {
+      background: rgba(255,255,255,0.03);
+      border: 0.5px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .chat-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 20px;
+      border-bottom: 0.5px solid var(--border);
+    }
+
+    .chat-header-dot {
+      width: 8px; height: 8px;
+      background: #4ade80;
+      border-radius: 50%;
+      animation: pulse-dot 2s infinite;
+    }
+
+    .chat-header-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--gold);
+      letter-spacing: 0.5px;
+    }
+
+    .chat-header-status {
+      font-size: 11px;
+      color: rgba(100,220,120,0.8);
+      margin-left: auto;
+    }
+
+    .chat-messages {
+      padding: 20px;
+      min-height: 200px;
+      max-height: 400px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .chat-messages::-webkit-scrollbar { width: 4px; }
+    .chat-messages::-webkit-scrollbar-thumb { background: rgba(255,215,0,0.15); border-radius: 99px; }
+
+    .msg { display: flex; gap: 10px; align-items: flex-start; }
+    .msg.user { flex-direction: row-reverse; }
+
+    .msg-av {
+      width: 30px; height: 30px;
+      border-radius: 7px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+    .msg-av.ai-av { background: rgba(255,215,0,0.12); border: 0.5px solid rgba(255,215,0,0.2); }
+    .msg-av.user-av { background: var(--faint); border: 0.5px solid var(--border); }
+
+    .msg-bubble {
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.7;
+      white-space: pre-line;
+    }
+    .msg.ai .msg-bubble {
+      background: rgba(255,215,0,0.07);
+      border: 0.5px solid rgba(255,215,0,0.15);
+      color: var(--text);
+      border-radius: 2px 10px 10px 10px;
+    }
+    .msg.user .msg-bubble {
+      background: var(--faint);
+      border: 0.5px solid var(--border);
+      color: rgba(255,255,255,0.75);
+      border-radius: 10px 2px 10px 10px;
+    }
+    .msg.ai .msg-bubble.off-topic {
+      background: rgba(255,80,80,0.06);
+      border-color: rgba(255,80,80,0.15);
+      color: rgba(255,180,180,0.85);
+    }
+
+    .typing-dot {
+      display: inline-block;
+      width: 5px; height: 5px;
+      background: var(--gold);
+      border-radius: 50%;
+      margin: 0 2px;
+      animation: blink 1.2s infinite;
+      opacity: 0.5;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink { 0%,80%,100%{opacity:0.15} 40%{opacity:1} }
+
+    .quick-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      padding: 10px 20px 14px;
+    }
+
+    .quick-btn {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      color: var(--muted);
+      border-radius: 99px;
+      font-size: 11px;
+      font-family: 'Syne', sans-serif;
+      font-weight: 500;
+      padding: 5px 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .quick-btn:hover { border-color: rgba(255,215,0,0.3); color: rgba(255,215,0,0.8); }
+
+    .chat-input-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 18px;
+      border-top: 0.5px solid var(--border);
+    }
+
+    #chat-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #fff;
+      font-size: 13px;
+      font-family: 'Syne', sans-serif;
+      caret-color: var(--gold);
+    }
+    #chat-input::placeholder { color: rgba(255,255,255,0.2); }
+
+    #send-btn {
+      background: var(--gold);
+      border: none;
+      color: #111;
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 16px;
+      transition: transform 0.1s, opacity 0.1s;
+    }
+    #send-btn:hover { transform: scale(1.08); }
+    #send-btn:active { transform: scale(0.94); }
+    #send-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+    .features-section {
+      position: relative;
+      z-index: 1;
+      max-width: 660px;
+      margin: 0 auto;
+      padding: 0 16px 100px;
+    }
+
+    .section-title {
+      text-align: center;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 11px;
+      color: var(--gold);
+      letter-spacing: 1px;
+      margin-bottom: 28px;
+      opacity: 0.7;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+    }
+
+    .feat-card {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 16px;
+      transition: border-color 0.2s;
+    }
+    .feat-card:hover { border-color: rgba(255,215,0,0.2); }
+
+    .feat-icon { font-size: 22px; margin-bottom: 10px; }
+    .feat-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 5px; }
+    .feat-desc { font-size: 11px; color: var(--muted); line-height: 1.6; }
+
+    footer {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: 28px 24px;
+      border-top: 0.5px solid var(--border);
+      font-size: 11px;
+      color: rgba(255,255,255,0.2);
+    }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,215,0,0.12); border-radius: 99px; }
+
+    @media (max-width: 480px) {
+      nav { padding: 12px 16px; }
+      .hero { padding: 110px 16px 40px; }
+      .chat-messages { max-height: 300px; }
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<nav>
+  <span class="nav-logo">Pigeon</span>
+  <div class="nav-right">
+    <a class="nav-link" href="#chat">Try it</a>
+    <button class="vote-btn" id="vote-btn" onclick="handleVote()">Vote &#x2191;</button>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-badge">AI Pigeon &mdash; your Minecraft companion</div>
+  <h1 class="hero-title">Pigeon</h1>
+  <p class="hero-sub">Fast, no-fluff Minecraft answers. Enchantments, PvP builds, brewing, survival &mdash; just ask and get back to playing.</p>
+</section>
+
+<div class="setup-section">
+  <div class="setup-group">
+    <p class="setup-label">Your device</p>
+    <div class="chip-row">
+      <span class="chip active" data-group="device" data-val="PC">&#x1F4BB; PC</span>
+      <span class="chip" data-group="device" data-val="Laptop">&#x1F5A5;&#xFE0F; Laptop</span>
+      <span class="chip" data-group="device" data-val="Phone">&#x1F4F1; Phone</span>
+    </div>
+  </div>
+  <div class="setup-group">
+    <p class="setup-label">Your client</p>
+    <div class="chip-row">
+      <span class="chip active" data-group="client" data-val="Vanilla">Vanilla</span>
+      <span class="chip" data-group="client" data-val="TLauncher">TLauncher</span>
+      <span class="chip" data-group="client" data-val="Lunar Client">Lunar Client</span>
+      <span class="chip" data-group="client" data-val="Badlion">Badlion</span>
+    </div>
+  </div>
+</div>
+
+<section class="chat-section" id="chat">
+  <div class="chat-box">
+    <div class="chat-header">
+      <div class="chat-header-dot"></div>
+      <span class="chat-header-name">AI Pigeon</span>
+      <span class="chat-header-status">Online &mdash; Free</span>
+    </div>
+
+    <div class="chat-messages" id="chat-messages">
+      <div class="msg ai">
+        <div class="msg-av ai-av">&#x1F426;</div>
+        <div class="msg-bubble">Hey! I'm AI Pigeon. Ask me anything about Minecraft &mdash; enchantments, PvP, potions, survival, farms, redstone, you name it. I only know Minecraft, so keep it blocky!</div>
+      </div>
+    </div>
+
+    <div class="quick-row" id="quick-row">
+      <button class="quick-btn" onclick="sendQuick(this)">Best sword enchantments</button>
+      <button class="quick-btn" onclick="sendQuick(this)">Fastest early game progression</button>
+      <button class="quick-btn" onclick="sendQuick(this)">Strongest potion combo</button>
+      <button class="quick-btn" onclick="sendQuick(this)">Best armor for PvP</button>
+    </div>
+
+    <div class="chat-input-row">
+      <input id="chat-input" placeholder="Ask a Minecraft question..." maxlength="300" />
+      <button id="send-btn" onclick="sendMessage()">&#x27A4;</button>
+    </div>
+  </div>
+</section>
+
+<section class="features-section">
+  <p class="section-title">What Pigeon knows</p>
+  <div class="features-grid">
+    <div class="feat-card">
+      <div class="feat-icon">&#x2694;&#xFE0F;</div>
+      <div class="feat-title">Combat &amp; PvP</div>
+      <div class="feat-desc">Enchant loadouts, potion setups, CPS tips for your client</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">&#x1F3D7;&#xFE0F;</div>
+      <div class="feat-title">Survival &amp; builds</div>
+      <div class="feat-desc">Progression paths, farm designs, biome strategies</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">&#x1F9EA;</div>
+      <div class="feat-title">Brewing</div>
+      <div class="feat-desc">Best potions, ingredients, and combo effects</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">&#x2728;</div>
+      <div class="feat-title">Enchantments</div>
+      <div class="feat-desc">Optimal enchant paths for every tool and situation</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">&#x1F30D;</div>
+      <div class="feat-title">World &amp; biomes</div>
+      <div class="feat-desc">Finding structures, rare biomes, mob spawning</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">&#x26A1;</div>
+      <div class="feat-title">No login needed</div>
+      <div class="feat-desc">Open, ask, get the answer, return to playing</div>
+    </div>
+  </div>
+</section>
+
+<footer>Pigeon &copy; 2025 &mdash; Fast AI answers for Minecraft players</footer>
+
+<script>
+  /*
+   * =====================================================
+   *  GROQ FREE API — no credit card required
+   *  1. Sign up free at https://console.groq.com
+   *  2. Create an API key (takes 30 seconds)
+   *  3. Paste it below, replacing YOUR_GROQ_KEY_HERE
+   * =====================================================
+   */
+  var GROQ_KEY = 'YOUR_GROQ_KEY_HERE';
+
+  var sel = { device: 'PC', client: 'Vanilla' };
+  var isTyping = false;
+
+  function buildSystem() {
+    return 'You are AI Pigeon, a Minecraft-only expert assistant. The player uses a ' + sel.device + ' and plays on ' + sel.client + '.\n\nYOUR RULES — follow without exception:\n1. You ONLY answer questions about Minecraft. Allowed topics: gameplay, enchantments, crafting, potions, PvP, survival, mobs, biomes, farms, redstone, servers, and any other in-game Minecraft content.\n2. If the question is NOT about Minecraft (e.g. life advice, cars, food, relationships, other games, school, science, weather, etc.) respond with exactly: "🐦 I only answer Minecraft questions! Ask me something in-game and I\'ll help."\n3. Never break rule 2 no matter what.\n4. For Minecraft questions: give a concise practical answer (4-8 lines). Use line breaks to organize tips. No filler — straight to the point. Tailor tips to the player\'s client when relevant (Lunar Client vs Vanilla have different PvP mechanics).';
+  }
+
+  document.querySelectorAll('.chip').forEach(function(c) {
+    c.addEventListener('click', function() {
+      var g = c.dataset.group;
+      document.querySelectorAll('.chip[data-group="' + g + '"]').forEach(function(x) { x.classList.remove('active'); });
+      c.classList.add('active');
+      sel[g] = c.dataset.val;
+    });
+  });
+
+  function handleVote() {
+    var btn = document.getElementById('vote-btn');
+    btn.textContent = 'Voted! \u2713';
+    btn.style.cssText = 'background:rgba(255,215,0,0.15);color:#FFD700;border:0.5px solid rgba(255,215,0,0.4);box-shadow:none;cursor:default;font-family:Press Start 2P,monospace;font-size:8px;padding:10px 18px;border-radius:4px;';
+    btn.disabled = true;
+  }
+
+  document.getElementById('chat-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) sendMessage();
+  });
+
+  function sendQuick(btn) {
+    document.getElementById('chat-input').value = btn.textContent.trim();
+    sendMessage();
+  }
+
+  function addMsg(text, role, offTopic) {
+    var wrap = document.getElementById('chat-messages');
+    var div = document.createElement('div');
+    div.className = 'msg ' + role;
+    var av = document.createElement('div');
+    av.className = 'msg-av ' + (role === 'ai' ? 'ai-av' : 'user-av');
+    av.textContent = role === 'ai' ? '\uD83D\uDC26' : '\uD83D\uDC64';
+    var bubble = document.createElement('div');
+    bubble.className = 'msg-bubble' + (offTopic ? ' off-topic' : '');
+    bubble.textContent = text;
+    div.appendChild(av);
+    div.appendChild(bubble);
+    wrap.appendChild(div);
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+
+  function addTyping() {
+    var wrap = document.getElementById('chat-messages');
+    var div = document.createElement('div');
+    div.className = 'msg ai';
+    div.id = 'typing-ind';
+    div.innerHTML = '<div class="msg-av ai-av">\uD83D\uDC26</div><div class="msg-bubble"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>';
+    wrap.appendChild(div);
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+
+  function removeTyping() {
+    var t = document.getElementById('typing-ind');
+    if (t) t.remove();
+  }
+
+  async function sendMessage() {
+    if (isTyping) return;
+    var input = document.getElementById('chat-input');
+    var text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+
+    addMsg(text, 'user', false);
+    document.getElementById('quick-row').style.display = 'none';
+    document.getElementById('send-btn').disabled = true;
+    isTyping = true;
+    addTyping();
+
+    try {
+      var res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + GROQ_KEY
+        },
+        body: JSON.stringify({
+          model: 'llama3-70b-8192',
+          max_tokens: 600,
+          messages: [
+            { role: 'system', content: buildSystem() },
+            { role: 'user', content: text }
+          ]
+        })
+      });
+
+      if (!res.ok) {
+        var err = await res.json().catch(function() { return {}; });
+        throw new Error(err.error && err.error.message ? err.error.message : 'HTTP ' + res.status);
+      }
+
+      var data = await res.json();
+      removeTyping();
+      var reply = data.choices && data.choices[0] && data.choices[0].message ? data.choices[0].message.content : 'Something went wrong. Please try again.';
+      var isOff = reply.indexOf('I only answer Minecraft') !== -1;
+      addMsg(reply, 'ai', isOff);
+
+    } catch(e) {
+      removeTyping();
+      addMsg('Could not connect. Check your Groq API key and internet connection.', 'ai', true);
+    }
+
+    isTyping = false;
+    document.getElementById('send-btn').disabled = false;
+  }
+
+  /* Animated background */
+  var canvas = document.getElementById('bg-canvas');
+  var ctx = canvas.getContext('2d');
+  var GRID = 44;
+  var nodes = [], animT = 0;
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    var cols = Math.ceil(canvas.width / GRID) + 1;
+    var rows = Math.ceil(canvas.height / GRID) + 1;
+    nodes = [];
+    for (var x = 0; x < cols; x++) {
+      for (var y = 0; y < rows; y++) {
+        nodes.push({ bx: x * GRID, by: y * GRID, phase: Math.random() * Math.PI * 2, speed: 0.25 + Math.random() * 0.5 });
+      }
+    }
+  }
+
+  function drawBg() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    animT += 0.007;
+    var pts = nodes.map(function(n) {
+      return {
+        x: n.bx + Math.sin(animT * n.speed + n.phase) * 9,
+        y: n.by + Math.cos(animT * n.speed + n.phase * 1.2) * 9,
+        a: 0.35 + 0.45 * Math.sin(animT * 0.7 + n.phase)
+      };
+    });
+
+    for (var i = 0; i < pts.length; i++) {
+      for (var j = i + 1; j < pts.length; j++) {
+        var dx = pts[i].x - pts[j].x;
+        var dy = pts[i].y - pts[j].y;
+        var d = Math.sqrt(dx * dx + dy * dy);
+        if (d < GRID * 1.5) {
+          var alpha = (1 - d / (GRID * 1.5)) * 0.22;
+          ctx.beginPath();
+          ctx.strokeStyle = 'rgba(255,215,0,' + alpha + ')';
+          ctx.lineWidth = 0.5;
+          ctx.moveTo(pts[i].x, pts[i].y);
+          ctx.lineTo(pts[j].x, pts[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    pts.forEach(function(p) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 1.8, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,215,0,' + (p.a * 0.4) + ')';
+      ctx.fill();
+    });
+
+    requestAnimationFrame(drawBg);
+  }
+
+  resizeCanvas();
+  drawBg();
+  window.addEventListener('resize', resizeCanvas);
+</script>
+</body>
+</html>
